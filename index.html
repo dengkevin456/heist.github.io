@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<!-- This is based on DillingerLee's great template here:
+https://github.com/Team-Code/KA_Offline -->
+<html id="lol">
+ <head>
+    <title>K</title>
+</head>
+ <style>
+    html, body {
+        font-family: Comic sans ms;
+    }
+ </style>
+ <body onload="alert('This game plays best if it is on full screen mode, go to the settings and toggle fullscreen for best performance')">
+    <p align="center">
+	<!--This draws the Canvas on the webpage -->
+      <canvas id="mycanvas" width="800" height="800">Your browser may not support WEBGL</canvas>
+    </p>
+ </body>
+
+ <!-- Run all the JavaScript stuff -->
+ <!-- Include the processing.js library -->
+ <!-- See https://khanacademy.zendesk.com/hc/en-us/articles/202260404-What-parts-of-ProcessingJS-does-Khan-Academy-support- for differences -->
+ <script src="https://cdn.jsdelivr.net/processing.js/1.4.8/processing.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+ <audio loop="true" autoplay autostart="true"><source src="https://vgmsite.com/soundtracks/minecraft/szinlrjfuu/Volume%20Alpha%2002.%20Door.mp3"></audio>
+ <script>
+    var sketchProc = function(processingInstance) {
+     with (processingInstance) {
+        rectMode(CENTER);
+    textAlign(CENTER, CENTER);
+    textFont(createFont("Verdana"));
+        size(600, 600, 1);
+
+        smooth();
+
+        var click = false;
+        var bs = 30;
+        var mouseSensitivity = 0.5;
+        var keys = [];
+        var screen = "mainMenu";
+        var lvl = 0;
+        var curEquipped = 0;
+        var curSelected = 0;
+        var unlockedLevel = [true, false, false, false, false, false, false, false];
+        var titleXpos = 0;
+        var titleYpos = 600;
+        var titleSize = 100;
+        var start = true;
+        var angles = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var transparency = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var fullScreen = false;
+var newMouseX = 0;
+var newMouseY = 0;
+var scopeOut = function(p) {
+  return function(){return this;}()[p];
+};
+function handleMove(e) {
+  if(!scopeOut('document').pointerLockElement) {
+    return;
+  }
+  newMouseX -= e.movementX * mouseSensitivity;
+  newMouseY -= e.movementY * mouseSensitivity*3;
+  if(newMouseX > 360) {
+    newMouseX = 0;
+  }
+  if(newMouseX < 0) {
+    newMouseX = 360;
+  }
+  newMouseY = constrain(newMouseY, -300, 300);
+};
+
+function Over(x, y, w, h) {
+    return (600-map(newMouseX,0,360,0,600) > x - w/2 && 600-map(newMouseX,0,360,0,600) < x + w/2 && 300-newMouseY > y - h/2 && 300-newMouseY < y + h/2);
+
+}
+
+var cam = {
+   x: 0,
+   y: 0,
+   sx:0,
+    sy:0,
+    toX:random(0,-1200),
+    toY:random(0,-1200),
+    time:0,
+};
+
+
+
+
+function rectCollide(obj1, obj2) {
+   /*
+
+   return (obj1.x + obj1.w/2 > obj2.x - obj2.w/2 && obj1.x - obj1.w/2 < obj2.x + obj2.w/2 && obj1.y + obj1.h/2 > obj2.y - obj2.y/2 && obj1.y - obj1.y/2 < obj2.y + obj2.h/2);
+   */
+   return (obj1.x + obj1.w > obj2.x && obj1.x < obj2.x + obj2.w && obj1.y + obj1.h < obj2.y && obj1.y < obj2.y + obj2.h);
+}
+
+function circleCollide(obj1, obj2, type) {
+   switch (type) {
+   default:
+   return (dist(obj1.x, obj1.y, obj2.x, obj2.y) < obj2.w/2 + 10);
+   break;
+   }
+}
+
+
+var gameMap = [
+    [
+        "----------------------------------",
+        "------rrr------@----bbbbb---------",
+        "----------------------------------",
+        "-----r---r------------------------",
+        "--------------C-------------------",
+        "---CCCCCCCCCC---------------------",
+        "-------------------bbbbbbb--------",
+        "----------------------------------",
+        "-----rrrrrrr----------------------",
+        "----------------------------------",
+        "----b----------------------b------",
+        "----b----------------------b------",
+        "----b-----r----------------b------",
+        "----b--------------r-------b------",
+        "----b----------------------b------",
+        "----b---------r------------b------",
+        "----b----------------------b------",
+        "----b-----C--------C-------b------",
+        "----b--b-------------b-----b------",
+        "----b---------p------------b------",
+        "----b--------------------bbb------",
+
+    ],
+    [
+        "----------------------------------",
+        "----rrrr--------------------------",
+        "----------------b-----------------",
+        "----@------r----b------------pp---",
+        "----------------b------------pp---",
+        "----rrrr--------b-----------------",
+        "----------------b-----------------",
+        "----------------b-----------------",
+        "----------------------------------",
+    ],
+];
+
+var pickRandomMap = floor(random(0, gameMap.length));
+
+var players = [
+   {
+      x: 0,
+      y: 0,
+      ox: 0,
+      oy: 0,
+      w: bs,
+      h: bs,
+      sx: 0,
+      sy: 0,
+      haveBought: true,
+      speed: 3,
+      maxSpeed: 3,
+      canShoot: true,
+      bulletSpeed: 3,
+      reloadSpeed: 0.1,
+      health: 100,
+      draw: function() {
+          pushMatrix();
+          translate(300, 300);
+          popMatrix();
+      },
+      display: function() {
+          pushMatrix();
+          translate(this.x, this.y);
+          rotate(this.angle - Math.PI/2);
+          fill(185);
+          rect(0, 0, this.w, this.h);
+          rect(-20, -20, 20, 20);
+          popMatrix();
+      },
+   },
+];
+
+function Bullet(x, y, sx, sy, type) {
+    this.x = x;
+    this.y = y;
+    this.w = 10;
+    this.sx = sx;
+    this.sy = sy;
+    this.speed = 1;
+    this.type = type;
+    this.shootTimer = 0;
+    this.isSplicing = false;
+
+}
+
+Bullet.prototype.draw = function() {
+    switch (this.type) {
+        case "cannon":
+            pushMatrix();
+    translate(this.x, this.y);
+    fill(90);
+    noStroke();
+    ellipse(0, 0, 10, 10);
+    popMatrix();
+        break;
+        case "player":
+            pushMatrix();
+            translate(this.x, this.y);
+            fill(150);
+            noStroke();
+            ellipse(0, 0, 10, 10);
+            popMatrix();
+           break;
+    }
+
+};
+
+
+
+Bullet.prototype.update = function() {
+
+    this.x += this.speed * this.sx;
+    this.y += this.speed * this.sy;
+};
+
+Bullet.prototype.collide = function(arr) {
+    for (var i in arr) {
+    if (circleCollide(this, arr[i])) {
+        this.x = -100000;
+        this.sx = 0;
+        this.sy = 0;
+        this.speed = 0;
+    }
+    }
+    if (this.type !== "player") {
+    if (circleCollide(this, player)) {
+        this.x = -100000;
+        this.sx = 0;
+        this.sy = 0;
+        this.speed = 0;
+        player.health -= 5;
+    }
+    }
+};
+
+Bullet.prototype.splicing = function(arr) {
+    for (var i in arr) {
+        if (dist(this.x, this.y, arr[i].x, arr[i].y) >= 250) {
+
+        }
+    }
+};
+
+var bullets = [];
+
+function Player(config) {
+    this.x = config.x;
+    this.y = config.y;
+    this.ox = config.ox;
+    this.oy = config.oy;
+    this.w = config.w;
+    this.h = config.h;
+    this.sx = config.sx;
+    this.sy = config.sy;
+    this.speed = config.speed;
+    this.canShoot = config.canShoot;
+    this.bulletSpeed = config.bulletSpeed;
+    this.reloadSpeed = config.reloadSpeed;
+    this.maxSpeed = config.maxSpeed;
+    this.angle = 0;
+    this.health = config.health;
+    this.origHealth = config.health;
+    this.reloadTimer = 0;
+    this.basicDraw = config.display;
+    this.timer = 0;
+}
+
+Player.prototype.reset = function() {
+    this.x = this.ox;
+    this.y = this.oy;
+    this.health = this.origHealth;
+    this.reloadTimer = 0;
+    this.speed = 3;
+    this.angle = 0;
+};
+
+var player = new Player(players[curEquipped]);
+
+function Block(x, y) {
+   this.x = x;
+   this.y = y;
+   this.w = bs;
+   this.h = bs;
+}
+var blocks = [];
+
+function Portal(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = bs;
+    this.h = bs;
+}
+
+Portal.prototype.draw = function() {
+    fill(200 - sin(frameCount * Math.PI / 180) * 55, 200 - cos(frameCount * Math.PI / 180) *55, 200 + sin(frameCount * Math.PI / 180) * 55);
+    rect(this.x, this.y, this.w, this.h);
+};
+
+Portal.prototype.collide = function() {
+    if (circleCollide(this, player)) {
+        if (screen === "playScreen") {
+        if (lvl < gameMap.length - 1) {
+        screen = "beatLevel";
+        }
+        else {
+            screen = "beatAllLevels";
+        }
+        }
+    }
+};
+
+function Cannon(x, y) {
+   this.x = x;
+   this.y = y;
+   this.ox = x;
+   this.oy = y;
+   this.w = bs;
+   this.h = bs;
+   this.shootTimer = 0;
+   this.health = 100;
+}
+
+Cannon.prototype.reset = function() {
+    this.x = this.ox;
+    this.y = this.oy;
+    this.health = 100;
+    this.shootTimer = 0;
+};
+
+Cannon.prototype.draw = function() {
+     this.angle = atan2(this.y - player.y, this.x - player.x);
+     pushMatrix();
+     translate(this.x, this.y);
+     fill(0, 255, 0);
+     rect(0, - 20, this.health / 2, 5);
+     rotate(this.angle);
+     fill(150);
+     noStroke();
+     ellipse(0, 0, this.w, this.h);
+     rect(-27, 0, this.w, 8);
+     popMatrix();
+};
+
+
+
+
+function Rock(x, y) {
+   this.x = x;
+   this.y = y;
+   this.ox = x;
+   this.oy = y;
+   this.w = bs;
+   this.h = bs;
+}
+
+Rock.prototype.reset = function() {
+    this.x = this.ox;
+    this.y = this.oy;
+};
+
+Rock.prototype.draw = function() {
+    fill(150);
+    noStroke();
+    ellipse(this.x, this.y, this.w, this.h);
+};
+
+Rock.prototype.collide = function(obj, type) {
+    for (var i in obj) {
+        switch (type) {
+        default:
+        var distance  = dist(this.x,this.y,obj[i].x,obj[i].y);
+    if(distance <= 20 + obj[i].w/2){
+        var a = atan2(this.y - obj[i].y,this.x-obj[i].x);
+        var s = (obj[i].w/2 + 20)-distance;
+           this.x += cos(a) * s/2;
+           this.y += sin(a) * s/2;
+           obj[i].x -= cos(a)*s/2;
+           obj[i].y -= sin(a)*s/2;
+    }
+        break;
+        case 0:
+           var distance  = dist(this.x,this.y,obj[i].x,obj[i].y);
+    if(distance <= 20 + obj[i].w/2){
+        var a = atan2(this.y - obj[i].y,this.x-obj[i].x);
+        var s = (obj[i].w/2 + 20)-distance;
+           this.x += cos(a) * s/2;
+           this.y += sin(a) * s/2;
+    }
+        break;
+        case 1:
+            var distance  = dist(this.x,this.y,obj[i].x,obj[i].y);
+    if(distance <= 20 + obj[i].w/2){
+        var a = atan2(this.y - obj[i].y,this.x-obj[i].x);
+        var s = (obj[i].w/2 + 20)-distance;
+           obj[i].x -= cos(a)*s/2;
+           obj[i].y -= sin(a)*s/2;
+    }
+        break;
+
+        }
+    }
+};
+
+var rocks = [];
+var portals = [];
+var cannons = [];
+Block.prototype.circColl = function(obj) {
+    for (var i in obj) {
+    var distance  = dist(this.x,this.y,obj[i].x,obj[i].y);
+    if(distance <= 20 + obj[i].w/2){
+        var a = atan2(this.y - obj[i].y,this.x-obj[i].x);
+        var s = (obj[i].w/2 + 20)-distance;
+           obj[i].x -= cos(a)*s/2;
+           obj[i].y -= sin(a)*s/2;
+    }
+    }
+};
+
+Block.prototype.draw = function() {
+    noStroke();
+    fill(194, 161, 119);
+    rect(this.x, this.y, this.w, this.h);
+    this.circColl(rocks);
+};
+
+function mapFill(map) {
+    blocks = [];
+    cannons = [];
+    rocks = [];
+    portals = [];
+    for (var y in map) {
+        for (var x in map[y]) {
+            var X = x + bs/2;
+            var Y = y + bs/2;
+            var m = map[y][x];
+            if (m === "@") {
+               player.ox = x * bs;
+               player.oy = y * bs;
+            }
+            else if (m === "b") {
+               blocks.push(new Block(x * bs, y * bs));
+            }
+            else if (m === "r") {
+               rocks.push(new Rock(x * bs, y * bs));
+            }
+            else if (m === "C") {
+               cannons.push(new Cannon(x * bs, y * bs));
+            }
+            else if (m === "p") {
+                portals.push(new Portal(x * bs, y * bs));
+            }
+        }
+    }
+    player.reset();
+}
+
+
+Player.prototype.draw = function() {
+    this.basicDraw();
+};
+
+
+Player.prototype.circColl = function(obj) {
+    for (var i in obj) {
+    var distance  = dist(this.x,this.y,obj[i].x,obj[i].y);
+    if(distance <= obj[i].w/2 + 20){
+        var a = atan2(this.y - obj[i].y,this.x-obj[i].x);
+        var s = (obj[i].w/2 + 20)-distance;
+        this.x += cos(a)*s/2;
+        this.y += sin(a)*s/2;
+        if (obj === rocks) {
+           obj[i].x -= cos(a)*s/2;
+           obj[i].y -= sin(a)*s/2;
+        }
+    }
+    }
+};
+
+Player.prototype.update = function() {
+    this.angle = atan2((300-newMouseY) - (cam.y + this.y), (600-map(newMouseX,0,360,0,600)) - (cam.x + this.x));
+    this.sx = this.speed * cos(this.angle);
+    this.sy = this.speed * sin(this.angle);
+    this.x = constrain(this.x, 0, gameMap[lvl][0].length * bs + 600);
+    this.y = constrain(this.y, 0, gameMap[lvl].length * bs + 600);
+    if (keys[87]) {
+    this.x += this.sx;
+    this.y += this.sy;
+    }
+
+    //this.collide(blocks, this.sx, 0);
+    //this.collide(blocks, 0, this.sy);
+    this.circColl(blocks);
+    this.circColl(rocks);
+
+
+};
+
+Player.prototype.cpu = function(obj) {
+    if (this.timer % round(random(50, 70)) === 0) {
+    player.x = random(0, 600);
+    player.y = random(0, 600);
+    }
+    this.timer++;
+};
+
+Player.prototype.shoot = function() {
+
+    this.angle = atan2((cam.x + this.x) - (600-map(newMouseX,0,360,0,600)), (300 - newMouseY) - (this.y + cam.y));
+    this.reloadTimer += this.reloadSpeed;
+    this.reloadTimer = constrain(this.reloadTimer, 0, 4);
+    if (this.canShoot) {
+        if (click && this.reloadTimer >= 4) {
+            this.reloadTimer = 0;
+            bullets.push(new Bullet(this.x, this.y, -sin(this.angle) * this.bulletSpeed, cos(this.angle) * this.bulletSpeed, "player"));
+        }
+    }
+};
+
+Cannon.prototype.shoot = function() {
+    this.angle = atan2((player.y) - this.y, (player.x) - this.x);
+    if (this.shootTimer > 50) {
+        bullets.push(new Bullet(this.x, this.y, 3 * cos(this.angle), 3 * sin(this.angle), "cannon"));
+        this.shootTimer = 0;
+    }
+    this.shootTimer++;
+};
+
+Cannon.prototype.collide = function(arr) {
+    for (var i in arr) {
+    if (circleCollide(this, arr[i])) {
+       if (arr[i].type === "player") {
+       this.health -= 10;
+       arr[i].x = Infinity;
+       arr.splice(i, 1);
+
+       }
+    }
+    }
+};
+
+Cannon.prototype.update = function() {
+    if (this.health <= 0) {
+        this.health = 0;
+        this.shootTimer = 0;
+        this.x = -100000;
+    }
+};
+
+function notice() {
+   background(0);
+   fill(255);
+   textSize(30);
+   text("Please click the canvas\nto continue playing", 300, 300);
+}
+
+function Button(x, y, w, h, label, nextScreen) {
+   this.initX = 0;
+   this.initY = random(0, 600);
+   this.x = x;
+   this.y = y;
+   this.w = w;
+   this.h = h;
+   this.label = label;
+   this.angle = 0;
+   this.nextScreen = nextScreen;
+   this.over = function() {
+      return (600-map(newMouseX,0,360,0,600) > this.x - this.w/2 && 600-map(newMouseX,0,360,0,600) < this.x + this.w/2 && 300-newMouseY > this.y - this.h/2 && 300-newMouseY < this.y + this.h/2);
+
+   }
+   this.draw = function() {
+      noStroke();
+      if (this.over()) {
+          fill(185);
+          if (click) {
+             screen = this.nextScreen;
+          }
+          this.angle = lerp(this.angle, Math.PI * 2, 0.1);
+      }
+      else {
+          fill(225);
+          this.angle = lerp(this.angle, 0, 0.1);
+      }
+      this.initX = lerp(this.initX, this.x, 0.1);
+      this.initY = lerp(this.initY, this.y, 0.07);
+      pushMatrix();
+      translate(this.initX, this.initY);
+      rotate(this.angle);
+      rect(0, 0, this.w, this.h);
+      fill(0);
+      text(this.label, 0, 0);
+      popMatrix();
+
+   };
+}
+
+
+
+function lock(x, y) {
+    rectMode(CORNER);
+    noStroke();
+    fill(135);
+    rect(x, y, 30, 25);
+    fill(0);
+    ellipse(x + 15, y + 10, 8, 8);
+    triangle(x + 15, y + 10, x + 10, y + 20, x + 20, y + 20);
+    stroke(135);
+    noFill();
+    arc(x + 15, y, 16, 18, 181 * Math.PI / 180, Math.PI * 2);
+    rectMode(CENTER);
+}
+
+function lvlButton(x, y, level, unlock) {
+    stroke(155);
+    strokeWeight(3);
+    if (Over(x, y, 50, 50)) {
+        fill(185);
+        cursor(HAND);
+        if (click) {
+            lvl = (level - 1);
+        }
+    }
+    else {
+        fill(225);
+    }
+    rect(x, y, 50, 50);
+    fill(0);
+    if (unlock) {
+    text(level, x, y);
+    }
+    else if (!unlock) {
+        lock(x - 11.3, y - 15);
+    }
+}
+
+var buttons = [
+   new Button(300, 300, 150, 50, "Play", "levelSelect"),
+   new Button(100, 520, 150, 50, "Back", "mainMenu"),
+   new Button(500, 520, 150, 50, "Next", "playScreen"),
+   new Button(300, 400, 150, 50, "Continue", "levelSelect"),
+   new Button(300, 300, 200, 50, "Next level", "playScreen"), // 4
+   new Button(300, 400, 200, 50, "Level select", "levelSelect"), // 5
+   new Button(300, 400, 150, 50, "Settings", "settingsScreen"), // 6
+   new Button(300, 520, 150, 50, "Back", "mainMenu"),
+   new Button(40, 40, 30, 30, "||", "pauseScreen"), // 8
+   new Button(300, 300, 150, 50, "Resume", "playScreen"),
+   new Button(300, 400, 150, 50, "Quit", "levelSelect"),
+];
+
+function gameBackground(type) {
+    switch (type) {
+    default:
+    background(0, 130, 255);
+    break;
+    case 0:
+    background(0, 130, 255);
+        cam.x = map(cam.time,0,1,cam.sx,cam.toX);
+        cam.y = map(cam.time,0,1,cam.sy,cam.toY);
+        cam.time += 0.007;
+        if(cam.time >= 1){
+            cam.time = 0;
+            cam.toX=random(0,gameMap[pickRandomMap][0].length * bs * -1 + 600);
+            cam.toY =random(0,gameMap[pickRandomMap].length * bs * -1 + 600);
+            cam.sx = cam.x;
+            cam.sy = cam.y;
+        }
+        cam.x = constrain(cam.x, gameMap[pickRandomMap][0].length * bs * -1 + 600, 0);
+        cam.y = constrain(cam.y, gameMap[pickRandomMap].length * bs * -1 + 600,0);
+        pushMatrix();
+        translate(cam.x, cam.y);
+        //player.draw();
+        player.cpu(portals[i]);
+        for (var i in blocks) {
+      blocks[i].draw();
+   }
+   for (var i in rocks) {
+      rocks[i].draw();
+      rocks[i].collide(cannons, 0);
+      rocks[i].collide(rocks);
+      rocks[i].collide(portals, 0);
+   }
+   for (var i in cannons) {
+       cannons[i].draw();
+       cannons[i].shoot();
+       cannons[i].collide(bullets);
+   }
+   for (var i in portals) {
+       portals[i].draw();
+       portals[i].collide();
+   }
+   for (var i in bullets) {
+       bullets[i].draw();
+       bullets[i].update();
+       bullets[i].collide(blocks);
+       bullets[i].collide(rocks);
+       bullets[i].splicing(cannons);
+
+
+       if (bullets[i].type === "player") {
+           bullets[i].collide(cannons);
+       }
+   }
+        popMatrix();
+        if (start) {
+       mapFill(gameMap[pickRandomMap]);
+       start = false;
+    }
+    break;
+    }
+
+}
+
+function mainMenu() {
+    gameBackground(0);
+    fill(0);
+    textSize(50);
+    titleXpos = lerp(titleXpos, 300, 0.1);
+    titleYpos = lerp(titleYpos, 70, 0.1);
+    titleSize = lerp(titleSize, 1, 0.05);
+    angles[0] = lerp(angles[0], Math.PI * 2, 0.05);
+    transparency[0] = constrain(transparency[0], 0, 255);
+    if (titleXpos >= 299 && titleYpos >= 69) {
+        transparency[0] += 2;
+    }
+    pushMatrix();
+    translate(titleXpos, titleYpos);
+    rotate(angles[0]);
+    scale(titleSize);
+    text("Heist.io", 0, 0);
+    popMatrix();
+    textSize(20);
+    fill(0, 0, 0, transparency[0]);
+    text("By Kevin", 300, 120);
+    textSize(30);
+
+    buttons[0].draw();
+    buttons[6].draw();
+}
+
+function levelSelect() {
+    gameBackground();
+    textSize(30);
+    fill(0);
+    lvlButton(100, 50, 1, unlockedLevel[0]);
+    lvlButton(200, 50, 2, unlockedLevel[1]);
+    if (unlockedLevel[lvl]) {
+    text("Level: " + (lvl + 1), 300, 500);
+    }
+    else {
+    text("Level: locked", 300, 500);
+    }
+    buttons[1].draw();
+    if (unlockedLevel[lvl]) {
+    buttons[2].draw();
+    }
+}
+
+function beatLevel() {
+   gameBackground();
+   strokeWeight(5);
+   stroke(0);
+   rect(300, 300, 400, 400);
+   fill(0);
+   textSize(30);
+   text("Congratulations!\nyou bet level " + (lvl + 1) + "!", 300, 150);
+   buttons[4].draw();
+   buttons[5].draw();
+}
+
+function beatAllLevels() {
+   gameBackground();
+   fill(0);
+   textSize(30);
+   text("Congratulations!\nYou bet all levels", 300, 150);
+   buttons[3].draw();
+}
+
+function settingsScreen() {
+    gameBackground();
+    textSize(30);
+    if (Over(100, 100, 150, 50)) {
+        fill(245);
+        if (click) {
+        if (!fullScreen) {
+        fullScreen = true;
+        }
+        else if (fullScreen) {
+        fullScreen = false;
+        }
+
+        }
+    }
+    else { fill(255); }
+    rect(100, 100, 150, 50);
+    fill(0);
+    if (fullScreen) {
+       text("Fullscreen\non", 100, 100);
+        scopeOut('document').getElementById('mycanvas').requestFullscreen();
+    }
+    else if (!fullScreen) {
+       text("Fullscreen\noff", 100, 100);
+       document.exitFullscreen();
+    }
+    buttons[7].draw();
+}
+
+function playScreen() {
+   gameBackground();
+   cam.x = Math.floor(lerp(cam.x, -player.x + 300, 0.1));
+   cam.y = Math.floor(lerp(cam.y, -player.y + 300, 0.1));
+   cam.x = constrain(cam.x, gameMap[lvl][0].length * bs * -1 + 600, 0);
+   cam.y = constrain(cam.y, -1200, 0);
+   pushMatrix();
+   translate(cam.x, cam.y);
+   player.draw();
+   player.update();
+   player.shoot();
+   for (var i in blocks) {
+      blocks[i].draw();
+   }
+   for (var i in rocks) {
+      rocks[i].draw();
+      rocks[i].collide(cannons, 0);
+      rocks[i].collide(rocks);
+      rocks[i].collide(portals, 0);
+   }
+   for (var i in cannons) {
+       cannons[i].draw();
+       cannons[i].shoot();
+       cannons[i].collide(bullets);
+   }
+   for (var i in portals) {
+       portals[i].draw();
+       portals[i].collide();
+   }
+   for (var i in bullets) {
+       bullets[i].draw();
+       bullets[i].update();
+       bullets[i].collide(blocks);
+       bullets[i].collide(rocks);
+       bullets[i].splicing(cannons);
+
+
+       if (bullets[i].type === "player") {
+           bullets[i].collide(cannons);
+       }
+   }
+   if (player.health <= 0) {
+       player.reset();
+       for (var i in cannons) {
+           cannons[i].reset();
+       }
+       for (var i in rocks) {
+           rocks[i].reset();
+       }
+       bullets.splice(0, bullets.length);
+   }
+   popMatrix();
+   fill(255, 0, 0);
+   rect(300, 30, player.origHealth * 3, 30);
+   fill(0, 255, 0);
+   rect(300, 30, player.health * 3, 30);
+   fill(0);
+   textSize(30);
+   text("Health: " + player.health, 300, 30);
+   text("x: " + player.x + "\ny: " + player.y, 500, 500);
+   buttons[8].draw();
+}
+
+function pauseScreen() {
+    gameBackground();
+    fill(255);
+    rect(300, 300, 400, 400);
+    fill(0);
+    textSize(30);
+    text("Game is paused", 300, 200);
+    textSize(20);
+    buttons[9].draw();
+    buttons[10].draw();
+}
+
+draw = function() {
+    try {
+    rectMode(CENTER);
+    textAlign(CENTER, CENTER);
+    cursor(ARROW);
+    textFont(createFont("Verdana"));
+    if(!scopeOut('document').pointerLockElement) {
+        notice();
+    }
+    else{
+    switch (screen) {
+    case "mainMenu":
+       mainMenu();
+    break;
+    case "levelSelect":
+       levelSelect();
+    break;
+    case "playScreen":
+       playScreen();
+    break;
+    case "beatLevel":
+       beatLevel();
+    break;
+    case "beatAllLevels":
+       beatAllLevels();
+    break;
+    case "settingsScreen":
+       settingsScreen();
+    break;
+    case "pauseScreen":
+    pauseScreen();
+    break;
+    }
+    fill(255);
+    strokeWeight(2);
+    stroke(0);
+    line(600-map(newMouseX,0,360,0,600) - 10,300-newMouseY, 600-map(newMouseX,0,360,0,600) + 10, 300-newMouseY);
+    line(600-map(newMouseX,0,360,0,600), 300 - newMouseY - 10, 600-map(newMouseX,0,360,0,600), 300 - newMouseY + 10);
+    noStroke();
+    }
+    click = false;
+    }
+    catch (Err) {
+        println(Err);
+    }
+};
+
+keyPressed = function(){
+    keys[keyCode] = true;
+};
+keyReleased = function(){
+    keys[keyCode] = false;
+    if (keyCode === 82) {
+        player.reset();
+        bullets.splice(0, bullets.length);
+        for (var i in rocks) {
+            rocks[i].reset();
+        }
+        for (var i in cannons) {
+            cannons[i].reset();
+        }
+    }
+};
+
+mousePressed = function() {
+    if (mouseButton === LEFT) {
+    click = true;
+    if(!scopeOut('document').pointerLockElement) {
+         scopeOut('document').getElementById('mycanvas').requestPointerLock();
+        scopeOut('document').getElementById('mycanvas').onmousemove = handleMove;
+        click = false;
+    }
+    if (screen === "mainMenu") {
+        if (buttons[0].over()) {
+            mapFill(gameMap[lvl]);
+        }
+    }
+    if (screen === "levelSelect") {
+        if (buttons[2].over()) {
+           mapFill(gameMap[lvl]);
+        }
+    }
+    if (screen === "beatLevel") {
+       if (buttons[4].over()) {
+           player.reset();
+           lvl++;
+           unlockedLevel[(lvl)] = true;
+           mapFill(gameMap[lvl]);
+       }
+       if (buttons[5].over()) {
+            player.reset();
+            unlockedLevel[lvl + 1] = true;
+       }
+    }
+    if (screen === "pauseScreen") {
+       if (buttons[10].over()) {
+          player.reset();
+          mapFill(gameMap[lvl]);
+       }
+    }
+    }
+};
+
+
+    }};
+    // Get the canvas that Processing-js will use
+    var canvas = document.getElementById("mycanvas");
+    // Pass the function sketchProc (defined in myCode.js) to Processing's constructor.
+    var processingInstance = new Processing(canvas, sketchProc);
+    document.getElementsById("lol").style.color = "blue";
+ </script>
+<p id="INFO">
+    All the code and references of this game can be found <a href="https://github.com/dengkevin456/dengkevin456.github.io/edit/main/index.html">here</a><br>
+
+</p>
+</html>
